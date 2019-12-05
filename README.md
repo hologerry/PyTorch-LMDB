@@ -58,7 +58,14 @@ class ImageFolderLMDB(data.Dataset):
         # https://github.com/chainer/chainermn/issues/129
 	# Delay loading LMDB data until after initialization to avoid "can't pickle Environment Object error"
         self.env = None
-        self.length = None
+	
+	# Workaround to have length from the start for ImageNet since we don't have LMDB at initialization time
+	if 'train' in self.db_path:
+            self.length = 1281167
+        elif 'val' in self.db_path:
+            self.length = 50000
+        else:
+            raise NotImplementedError
 	...
 	
     def _init_db(self):
@@ -75,15 +82,6 @@ class ImageFolderLMDB(data.Dataset):
         if self.env is None:
             self._init_db()
 	...
-	
-    # Workaround to have length from the start for ImageNet since we don't have LMDB at initialization time
-    def __len__(self):
-        if 'train' in self.db_path:
-            return 1281167
-        elif 'val' in self.db_path:
-            return 50000
-        else:
-            raise NotImplementedError
 ```
 
 Now we can launch LMDB version with `torch.multiprocessing` using above workaround:
