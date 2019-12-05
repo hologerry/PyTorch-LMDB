@@ -38,6 +38,59 @@ time python main.py --arch resnet50 --train train-lmdb/ --val val-lmdb/ --lmdb -
 time python main.py --arch resnet50 --train /imagenet/train --val /imagenet/val --epochs 2
 ```
 
+## Multi-processing Distributed Data Parallel Training
+
+You should always use the NCCL backend for multi-processing distributed training since it currently provides the best distributed training performance.
+
+### Single node, multiple GPUs:
+
+JPEG
+```bash
+python main.py -a resnet50 --dist-url 'tcp://127.0.0.1:9999' --dist-backend 'nccl' --multiprocessing-distributed --world-size 1 --rank 0 --train /imagenet/train --val /imagenet/val
+```
+
+LMDB
+* NOTE: Since LMDB can't be pickled, you need to hack the `folder2lmdb.ImageFolderLMDB` to delay the loading of the environment, such as below:
+
+```python
+class ImageFolderLMDB(data.Dataset):
+    def __init__(self, db_path, transform=None, target_transform=None):
+        # https://github.com/chainer/chainermn/issues/129
+	# Delay loading LMDB data until after initialization to avoid "can't pickle Environment Object error"
+        self.env = None
+        self.length = None
+	...
+	
+    def _init_db(self):
+        self.env = lmdb.open(self.db_path, subdir=os.path.isdir(self.db_path),
+                             readonly=True, lock=False,
+                             readahead=False, meminit=False)
+        with self.env.begin(write=False) as txn:
+            # self.length = txn.stat()['entries'] - 1
+            self.length = pa.deserialize(txn.get(b'__len__'))
+            self.keys = pa.deserialize(txn.get(b'__keys__'))
+
+    def __getitem__(self, index):
+        # Delay loading LMDB data until after initialization: https://github.com/chainer/chainermn/issues/129
+        if self.env is None:
+            self._init_db()
+	...
+	
+    # Workaround to have length from the start for ImageNet since we don't have LMDB at initialization time
+    def __len__(self):
+        if 'train' in self.db_path:
+            return 1281167
+        elif 'val' in self.db_path:
+            return 50000
+        else:
+            raise NotImplementedError
+```
+
+Now we can launch LMDB version with `torch.multiprocessing` using above workaround:
+```bash
+python main.py -a resnet50 --dist-url 'tcp://127.0.0.1:9999' --dist-backend 'nccl' --multiprocessing-distributed --world-size 1 --rank 0 --train /imagenet/train-lmdb --val /imagenet/val-lmdb --lmdb
+```
+
 ## LMDB
 
 LMDB is a json-like, but in binary stream key-value storage. In my design, the format of converted LMDB is defined as follow.
