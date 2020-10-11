@@ -74,8 +74,13 @@ def celebahq2lmdb(celebahq_path, outpath, selected_attrs):
         else:  # 28000
             celeba_train_dataset.append([filepath, label])
 
+    assert len(celeba_train_dataset) == 28000
+    assert len(celeba_test_dataset) == 2000
+
     celeba_eval_part1 = celeba_test_dataset[:len(celeba_test_dataset)//2]
     celeba_eval_part2 = celeba_test_dataset[len(celeba_test_dataset)//2:]
+    assert len(celeba_eval_part1) == 1000
+    assert len(celeba_eval_part2) == 1000
 
     train_lmdb_dir = ospj(outpath, 'train')
     write_list_to_lmdb(celeba_train_dataset, train_lmdb_dir)
@@ -123,8 +128,13 @@ def ffhq2lmdb(ffhq_path, outpath, selected_attrs):
         else:  # 4000
             ffhq_train_dataset.append([filepath, label])
 
+    assert(len(ffhq_train_dataset)) == 66000
+    assert(len(ffhq_test_dataset)) == 4000
+
     ffhq_eval_part1 = ffhq_test_dataset[:len(ffhq_test_dataset)//2]
     ffhq_eval_part2 = ffhq_test_dataset[len(ffhq_test_dataset)//2:]
+    assert len(ffhq_eval_part1) == 2000
+    assert len(ffhq_eval_part2) == 2000
 
     train_lmdb_dir = ospj(outpath, 'train')
     write_list_to_lmdb(ffhq_train_dataset, train_lmdb_dir)
@@ -136,7 +146,7 @@ def ffhq2lmdb(ffhq_path, outpath, selected_attrs):
     eval_part2_lmdb_dir = ospj(outpath, 'eval_part2')
     write_list_to_lmdb(ffhq_eval_part2, eval_part2_lmdb_dir)
     print("Finished processing FFHQ dataset")
-    return ffhq_train_dataset, ffhq_train_dataset, ffhq_eval_part1, ffhq_eval_part2
+    return ffhq_train_dataset, ffhq_test_dataset, ffhq_eval_part1, ffhq_eval_part2
 
 
 def celebahq_ffhq_to_lmdb(celebahq_ffhq_fake_outpath, train, test, eval_part1, eval_part2):
@@ -164,7 +174,11 @@ if __name__ == "__main__":
     celeba_train, celeba_test, celeba_evalp1, celeba_evalp2 = celebahq2lmdb(celebahq_path, celebahq_outpath, selected_attrs)
     ffhq_train, ffhq_test, ffhq_evalp1, ffhq_evalp2 = ffhq2lmdb(ffhq_path, ffhq_outpath, selected_attrs)
     train = celeba_train + ffhq_train
-    test = celeba_test + celeba_test
+    assert len(train) == 28000 + 66000
+    test = celeba_test + ffhq_test
+    assert len(test) == 2000 + 4000
     evalp1 = celeba_evalp1 + ffhq_evalp1
+    assert len(evalp1) == 1000 + 2000
     evalp2 = celeba_evalp2 + ffhq_evalp2
+    assert len(evalp2) == 1000 + 2000
     celebahq_ffhq_to_lmdb(celebahq_ffhq_fake_outpath, train, test, evalp1, evalp2)
