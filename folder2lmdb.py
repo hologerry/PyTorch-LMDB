@@ -1,23 +1,15 @@
 import os
-import sys
 import six
-import string
 import argparse
 
 import lmdb
-import pickle
-import msgpack
-import tqdm
 from PIL import Image
 
-import torch
 import torch.utils.data as data
 from torch.utils.data import DataLoader
-from torchvision.transforms import transforms
 from torchvision.datasets import ImageFolder
-from torchvision import transforms, datasets
-# This segfaults when imported before torch: https://github.com/apache/arrow/issues/2637
 import pyarrow as pa
+# This segfaults when imported before torch: https://github.com/apache/arrow/issues/2637
 
 
 class ImageFolderLMDB(data.Dataset):
@@ -97,8 +89,8 @@ def folder2lmdb(path, outpath, write_frequency=5000):
                    meminit=False, map_async=True)
 
     txn = db.begin(write=True)
-    for idx, data in enumerate(data_loader):
-        image, label = data[0]
+    for idx, data_item in enumerate(data_loader):
+        image, label = data_item[0]
         txn.put(u'{}'.format(idx).encode('ascii'), dumps_pyarrow((image, label)))
         if idx % write_frequency == 0:
             print("[%d/%d]" % (idx, len(data_loader)))
@@ -107,7 +99,7 @@ def folder2lmdb(path, outpath, write_frequency=5000):
 
     # finish iterating through dataset
     txn.commit()
-    keys = [u'{}'.format(k).encode('ascii') for k in range(idx + 1)]
+    keys = [u'{}'.format(k).encode('ascii') for k in range(len(data_loader))]
     with db.begin(write=True) as txn:
         txn.put(b'__keys__', dumps_pyarrow(keys))
         txn.put(b'__len__', dumps_pyarrow(len(keys)))
